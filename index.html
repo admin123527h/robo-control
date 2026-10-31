@@ -146,10 +146,15 @@
 </div>
 
 <script>
+window.addEventListener("error", e => {
+  const l = document.getElementById("log");
+  if (l) { const d = document.createElement("div"); d.className = "fehler"; d.textContent = "JS-Fehler: " + e.message; l.appendChild(d); }
+});
 (() => {
   // ---------- Einstellungen ----------
-  const SERVICE = 0xFFE0;
-  const KANAL = 0xFFE1;
+  const VERSION = "v2";
+  const SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+  const KANAL_UUID   = "0000ffe1-0000-1000-8000-00805f9b34fb";
   const HERZSCHLAG_MS = 400;
   const RADAR_MAX = 200;
   const STOPP_ABSTAND = 25;
@@ -195,16 +200,33 @@
   }
 
   async function verbindenStart(){
-    if (!navigator.bluetooth) return;
-    try {
-      geraet = await navigator.bluetooth.requestDevice({
-        filters: [{name:"HC-08"}, {namePrefix:"HC"}, {services:[SERVICE]}],
-        optionalServices: [SERVICE]
-      });
-    } catch (e) {
-      log("Auswahl abgebrochen: " + e.message, true);
+    log("Knopf gedrückt – suche Geräte …");
+    if (!navigator.bluetooth) {
+      log("FEHLER: Dieser Browser hat kein Bluetooth (navigator.bluetooth fehlt). In Bluefy öffnen!", true);
       return;
     }
+    // Methode 1: gezielt nach HC-08 / Datenkanal filtern
+    try {
+      geraet = await navigator.bluetooth.requestDevice({
+        filters: [{services:[SERVICE_UUID]}, {name:"HC-08"}],
+        optionalServices: [SERVICE_UUID]
+      });
+    } catch (e) {
+      log("Methode 1: " + e.name + " – " + e.message, true);
+      if (e.name === "NotFoundError" && /cancel/i.test(e.message)) return; // selbst abgebrochen
+      // Methode 2: alle Geräte anzeigen
+      try {
+        log("Versuche Methode 2 (alle Geräte anzeigen) …");
+        geraet = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [SERVICE_UUID]
+        });
+      } catch (e2) {
+        log("Methode 2: " + e2.name + " – " + e2.message, true);
+        return;
+      }
+    }
+    log("Ausgewählt: " + (geraet.name || "(ohne Namen)"));
     geraet.addEventListener("gattserverdisconnected", getrennt);
     absichtlichGetrennt = false;
     await verbinde();
@@ -217,8 +239,8 @@
       status("suche", versuch === 1 ? "Verbinde …" : `Suche … (Versuch ${versuch})`);
       try {
         const server = await geraet.gatt.connect();
-        const dienst = await server.getPrimaryService(SERVICE);
-        kanal = await dienst.getCharacteristic(KANAL);
+        const dienst = await server.getPrimaryService(SERVICE_UUID);
+        kanal = await dienst.getCharacteristic(KANAL_UUID);
         ohneAntwort = !!(kanal.properties && kanal.properties.writeWithoutResponse);
         try {
           await kanal.startNotifications();
@@ -449,6 +471,8 @@
   }
   requestAnimationFrame(zeichne);
   status("weg", "Nicht verbunden");
+  log("Seite geladen (" + VERSION + ") – Bluetooth " + (navigator.bluetooth ? "verfügbar ✔" : "NICHT verfügbar ✘"),
+      !navigator.bluetooth);
   punktEl.classList.add("blink");
 })();
 </script>
