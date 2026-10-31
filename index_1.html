@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ROBO-CONTROL Mobile</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#181b24; --panel2:#1f2330; --text:#e6e9f2; --dim:#7d8499;
+    --akzent:#3b82f6; --gruen:#22c55e; --gelb:#f59e0b; --rot:#ef4444;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;touch-action:manipulation}
+  body{padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 12px)
+       calc(env(safe-area-inset-bottom) + 14px) calc(env(safe-area-inset-left) + 12px);
+       max-width:560px;margin:0 auto}
+  .panel{background:var(--panel);border-radius:16px;padding:12px;margin-bottom:10px}
+  .label{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+  button{font:inherit;color:var(--text);background:var(--panel2);border:0;border-radius:14px;cursor:pointer;
+    transition:background .12s, transform .08s}
+  button:active{transform:scale(.97)}
+
+  /* Kopfzeile */
+  .kopf{display:flex;align-items:center;gap:10px}
+  .titel{font-weight:800;font-size:18px;flex:1}
+  .pille{display:flex;align-items:center;gap:6px;background:var(--panel2);border-radius:20px;
+    padding:6px 12px;font-size:12px;font-weight:700;max-width:58%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .punkt{width:9px;height:9px;border-radius:50%;background:var(--gelb);flex:none}
+  .punkt.blink{animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .verbinden{width:100%;margin-top:10px;padding:14px;font-weight:800;font-size:16px;background:var(--akzent)}
+  .verbinden.zweit{background:var(--panel2);font-size:14px;padding:11px;margin-top:8px}
+  #verbindenBox.weg{display:none}
+
+  /* Radar */
+  #radar{width:100%;height:210px;display:block}
+
+  /* Kacheln */
+  .kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .kachel{background:var(--panel2);border-radius:12px;padding:8px 6px;text-align:center}
+  .kachel .wert{font-weight:800;font-size:14px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .linie{display:flex;justify-content:center;gap:7px;margin-top:5px}
+  .linie span{width:14px;height:14px;border-radius:50%;border:2px solid #3a4155}
+  .linie span.an{background:var(--akzent);border-color:var(--akzent)}
+
+  /* Modi */
+  .modi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .modi button{padding:11px 8px;text-align:left;display:flex;align-items:center;gap:9px}
+  .modi .ico{font-size:22px}
+  .modi b{display:block;font-size:14px}
+  .modi small{color:var(--dim);font-size:11px}
+  .modi button.aktiv{background:var(--akzent)}
+  .modi button.aktiv small{color:#dbe7ff}
+
+  /* Steuerkreuz */
+  .steuer{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:8px auto 0;max-width:330px}
+  .steuer button{height:74px;font-size:28px;font-weight:800}
+  .steuer button.gedrueckt{background:var(--akzent)}
+  .steuer .stopp{background:var(--rot);font-size:22px}
+  .leer{visibility:hidden}
+
+  /* Tempo */
+  .tempo{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .tempo button{width:48px;height:42px;font-size:22px;font-weight:800}
+  .balken{flex:1;height:12px;background:var(--panel2);border-radius:6px;overflow:hidden}
+  .balken div{height:100%;width:0;background:var(--akzent);transition:width .25s}
+  #tempoText{width:46px;text-align:right;font-weight:800}
+
+  .aktionen{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .aktionen button{padding:11px 4px;font-size:12px;font-weight:700}
+
+  .notstopp{width:100%;padding:16px;font-size:18px;font-weight:900;background:var(--rot);margin-bottom:10px}
+
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#c5cad8;background:var(--bg);
+    border-radius:10px;padding:8px;height:120px;overflow-y:auto;margin-top:6px;-webkit-user-select:text;user-select:text}
+  .hinweis{font-size:13px;color:var(--dim);line-height:1.45;margin-top:8px}
+  .hinweis b{color:var(--text)}
+  .fehler{color:#fca5a5}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="kopf">
+    <div class="titel">🤖 ROBO-CONTROL</div>
+    <div class="pille"><span class="punkt" id="punkt"></span><span id="status">Nicht verbunden</span></div>
+  </div>
+  <div id="verbindenBox">
+    <button class="verbinden" id="verbindenBtn">🔗 Mit Roboter verbinden</button>
+    <button class="verbinden zweit" id="alleBtn">🔍 Alle Geräte anzeigen</button>
+  </div>
+  <div class="hinweis" id="hinweis">
+    Roboter einschalten, PC-App schließen, dann <b>„Mit Roboter verbinden“</b> tippen und <b>HC-08</b> wählen.
+    Danach verbindet sich die Seite bei einem Abbruch automatisch neu.
+  </div>
+</div>
+
+<button class="notstopp" data-cmd="x">■ STOPP</button>
+
+<div class="panel">
+  <canvas id="radar"></canvas>
+  <div class="kacheln">
+    <div class="kachel"><div class="label">Modus</div><div class="wert" id="kModus">–</div></div>
+    <div class="kachel"><div class="label">Fahrt</div><div class="wert" id="kFahrt">–</div></div>
+    <div class="kachel"><div class="label">Linie L·M·R</div>
+      <div class="linie"><span id="l0"></span><span id="l1"></span><span id="l2"></span></div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="label">Modus</div>
+  <div class="modi" id="modi">
+    <button data-cmd="1" data-modus="1"><span class="ico">🎮</span><span><b>Manuell</b><small>Du fährst</small></span></button>
+    <button data-cmd="2" data-modus="2"><span class="ico">🧭</span><span><b>Erkunden</b><small>Fährt allein</small></span></button>
+    <button data-cmd="3" data-modus="3"><span class="ico">〰️</span><span><b>Linie</b><small>Folgt der Linie</small></span></button>
+    <button data-cmd="4" data-modus="4"><span class="ico">✋</span><span><b>Hand</b><small>Folgt deiner Hand</small></span></button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="label">Fahren – gedrückt halten</div>
+  <div class="steuer">
+    <button data-halten="q">↖</button>
+    <button data-halten="w">▲</button>
+    <button data-halten="e">↗</button>
+    <button data-halten="a">⟲</button>
+    <button class="stopp" data-cmd="x">■</button>
+    <button data-halten="d">⟳</button>
+    <button class="leer"></button>
+    <button data-halten="s">▼</button>
+    <button class="leer"></button>
+  </div>
+  <div class="tempo">
+    <button data-cmd="-">–</button>
+    <div class="balken"><div id="tempoBalken"></div></div>
+    <span id="tempoText">–</span>
+    <button data-cmd="+">+</button>
+  </div>
+  <div class="aktionen">
+    <button data-cmd="t">🧪 Test</button>
+    <button data-cmd="i">📡 Sensoren</button>
+    <button data-cmd="m" id="ausweichBtn">🛡 Ausweichen</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="label">Meldungen</div>
+  <div id="log"></div>
+</div>
+
+<script>
+window.addEventListener("error", e => {
+  const l = document.getElementById("log");
+  if (l) { const d = document.createElement("div"); d.className = "fehler"; d.textContent = "JS-Fehler: " + e.message; l.appendChild(d); }
+});
+(() => {
+  // ---------- Einstellungen ----------
+  const VERSION = "v3";
+  const SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+  const KANAL_UUID   = "0000ffe1-0000-1000-8000-00805f9b34fb";
+  const HERZSCHLAG_MS = 400;
+  const RADAR_MAX = 200;
+  const STOPP_ABSTAND = 25;
+  const MODI = {1:"🎮 Manuell", 2:"🧭 Erkunden", 3:"〰️ Linie", 4:"✋ Hand"};
+  const FAHRT = {0:"Steht", 1:"Vorwärts", 2:"Rückwärts", 3:"Dreht", 4:"Kurve"};
+  const C = {gruen:"#22c55e", gelb:"#f59e0b", rot:"#ef4444", akzent:"#3b82f6", dim:"#7d8499", panel:"#181b24"};
+
+  // ---------- Elemente ----------
+  const $ = id => document.getElementById(id);
+  const logEl = $("log"), statusEl = $("status"), punktEl = $("punkt");
+  const verbindenBtn = $("verbindenBtn"), hinweisEl = $("hinweis");
+
+  // ---------- Zustand ----------
+  let geraet = null, kanal = null, verbunden = false, absichtlichGetrennt = false;
+  let puffer = "", schreibKette = Promise.resolve(), herzschlag = null;
+  let ohneAntwort = true;
+  const radar = {abstand:null, scan:null, sweep:90, dir:1};
+  const gehalten = new Set();
+
+  function log(text, fehler){
+    const z = document.createElement("div");
+    const t = new Date().toLocaleTimeString("de-AT",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    z.textContent = t + "  " + text;
+    if (fehler) z.className = "fehler";
+    logEl.appendChild(z);
+    while (logEl.childNodes.length > 150) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+    if (text.includes("AUSWEICHEN")) $("ausweichBtn").textContent = "🛡 Ausweichen: an";
+    if (text.includes("NUR STOPPEN")) $("ausweichBtn").textContent = "🛡 Nur stoppen";
+  }
+
+  function status(art, text){
+    statusEl.textContent = text;
+    punktEl.style.background = art === "ok" ? C.gruen : art === "weg" ? C.rot : C.gelb;
+    punktEl.classList.toggle("blink", art !== "ok");
+  }
+
+  // ---------- Bluetooth ----------
+  if (!navigator.bluetooth) {
+    status("weg", "Kein Bluetooth hier");
+    hinweisEl.innerHTML = "Dieser Browser kann kein Bluetooth. Öffne die Seite auf dem iPhone in <b>Bluefy</b>, " +
+      "am PC in <b>Chrome</b> oder <b>Edge</b>.";
+  }
+
+  async function verbindenStart(alleGeraete){
+    log(alleGeraete ? "Zeige ALLE Geräte in der Nähe …" : "Suche HC-08 …");
+    if (!navigator.bluetooth) {
+      log("FEHLER: Dieser Browser hat kein Bluetooth (navigator.bluetooth fehlt). In Bluefy öffnen!", true);
+      return;
+    }
+    const optionen = alleGeraete
+      ? { acceptAllDevices: true, optionalServices: [SERVICE_UUID] }
+      : { filters: [{name:"HC-08"}], optionalServices: [SERVICE_UUID] };
+    try {
+      geraet = await navigator.bluetooth.requestDevice(optionen);
+    } catch (e) {
+      log(e.name + ": " + e.message, true);
+      if (!alleGeraete) log("Tipp: Probier den Knopf „Alle Geräte anzeigen“.");
+      return;
+    }
+    log("Ausgewählt: " + (geraet.name || "(ohne Namen)"));
+    geraet.addEventListener("gattserverdisconnected", getrennt);
+    absichtlichGetrennt = false;
+    await verbinde();
+  }
+
+  async function verbinde(){
+    let versuch = 0;
+    while (!verbunden && geraet && !absichtlichGetrennt) {
+      versuch++;
+      status("suche", versuch === 1 ? "Verbinde …" : `Suche … (Versuch ${versuch})`);
+      try {
+        const server = await geraet.gatt.connect();
+        const dienst = await server.getPrimaryService(SERVICE_UUID);
+        kanal = await dienst.getCharacteristic(KANAL_UUID);
+        ohneAntwort = !!(kanal.properties && kanal.properties.writeWithoutResponse);
+        try {
+          await kanal.startNotifications();
+          kanal.addEventListener("characteristicvaluechanged", empfangen);
+        } catch (e) { /* Rückmeldungen sind nur Bonus */ }
+        verbunden = true;
+        status("ok", "Verbunden: " + (geraet.name || "Roboter"));
+        log("✔ Verbunden mit " + (geraet.name || "Roboter"));
+        $("verbindenBox").classList.add("weg");
+        hinweisEl.style.display = "none";
+        starteHerzschlag();
+        return;
+      } catch (e) {
+        if (versuch === 1) log("Verbindung klappt noch nicht: " + e.message, true);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  function getrennt(){
+    const war = verbunden;
+    verbunden = false; kanal = null;
+    stoppeHerzschlag();
+    radar.abstand = null;
+    if (war) log("Verbindung verloren – verbinde automatisch neu …", true);
+    status("weg", "Verbindung verloren – suche neu …");
+    if (!absichtlichGetrennt) setTimeout(verbinde, 1000);
+  }
+
+  function senden(z){
+    if (!verbunden || !kanal) return;
+    const daten = new TextEncoder().encode(z);
+    // Bluetooth kann nur einen Befehl gleichzeitig – deshalb hintereinander
+    schreibKette = schreibKette.then(() => {
+      if (!kanal) return;
+      if (ohneAntwort && kanal.writeValueWithoutResponse) return kanal.writeValueWithoutResponse(daten);
+      if (kanal.writeValueWithResponse) return kanal.writeValueWithResponse(daten);
+      return kanal.writeValue(daten);
+    }).catch(() => {});
+  }
+
+  function starteHerzschlag(){
+    stoppeHerzschlag();
+    herzschlag = setInterval(() => senden("h"), HERZSCHLAG_MS);
+  }
+  function stoppeHerzschlag(){ if (herzschlag) clearInterval(herzschlag); herzschlag = null; }
+
+  function empfangen(ev){
+    puffer += new TextDecoder().decode(ev.target.value);
+    let i;
+    while ((i = puffer.indexOf("\n")) >= 0) {
+      const zeile = puffer.slice(0, i).trim();
+      puffer = puffer.slice(i + 1);
+      if (!zeile) continue;
+      if (zeile.startsWith("D:")) daten(zeile);
+      else if (zeile.startsWith("S:")) {
+        const [l, r] = zeile.slice(2).split(",").map(Number);
+        if (!isNaN(l) && !isNaN(r)) radar.scan = {l, r, zeit: performance.now()};
+      }
+      else log(zeile);
+    }
+  }
+
+  function daten(zeile){
+    const w = {};
+    zeile.split(",").forEach(t => { const [k, v] = t.split(":"); if (v !== undefined) w[k.trim()] = v.trim(); });
+    if (w.D !== undefined) radar.abstand = parseInt(w.D, 10);
+    if (w.M) {
+      const m = w.M;
+      $("kModus").textContent = MODI[m] || "?";
+      document.querySelectorAll("[data-modus]").forEach(b => b.classList.toggle("aktiv", b.dataset.modus === m));
+    }
+    if (w.T) {
+      const p = Math.round(parseInt(w.T, 10) / 255 * 100);
+      $("tempoBalken").style.width = p + "%";
+      $("tempoText").textContent = p + "%";
+    }
+    if (w.F !== undefined) {
+      const f = parseInt(w.F, 10);
+      const el = $("kFahrt");
+      el.textContent = FAHRT[f] || "?";
+      el.style.color = f ? C.gruen : "";
+    }
+    if (w.L) for (let k = 0; k < 3; k++) $("l" + k).classList.toggle("an", w.L[k] === "1");
+  }
+
+  // ---------- Bedienung ----------
+  verbindenBtn.addEventListener("click", () => verbindenStart(false));
+  $("alleBtn").addEventListener("click", () => verbindenStart(true));
+
+  document.querySelectorAll("[data-cmd]").forEach(b => {
+    b.addEventListener("click", () => senden(b.dataset.cmd));
+  });
+
+  function loslassen(t, b){
+    if (!gehalten.has(t)) return;
+    gehalten.delete(t);
+    b.classList.remove("gedrueckt");
+    senden(gehalten.size ? [...gehalten][0] : "x");
+  }
+  document.querySelectorAll("[data-halten]").forEach(b => {
+    const t = b.dataset.halten;
+    b.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      try { b.setPointerCapture(e.pointerId); } catch (_) {}
+      gehalten.add(t);
+      b.classList.add("gedrueckt");
+      senden(t);
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev =>
+      b.addEventListener(ev, () => loslassen(t, b)));
+    b.addEventListener("contextmenu", e => e.preventDefault());
+  });
+
+  // Tastatur (am PC)
+  const FAHR = new Set(["w","a","s","d","q","e"]);
+  window.addEventListener("keydown", e => {
+    if (e.repeat) return;
+    let t = e.key.toLowerCase();
+    if (t === " ") t = "x";
+    if (FAHR.has(t)) {
+      gehalten.add(t);
+      document.querySelector(`[data-halten="${t}"]`)?.classList.add("gedrueckt");
+      senden(t);
+    } else if ("x1234+-mti".includes(t) && t.length === 1) senden(t);
+  });
+  window.addEventListener("keyup", e => {
+    const t = e.key.toLowerCase();
+    if (FAHR.has(t)) loslassen(t, document.querySelector(`[data-halten="${t}"]`));
+  });
+
+  // Seite verlassen / App wechseln: anhalten
+  document.addEventListener("visibilitychange", () => { if (document.hidden) senden("x"); });
+
+  // ---------- Radar ----------
+  const cv = $("radar"), ctx = cv.getContext("2d");
+  function farbe(cm){
+    if (cm == null || cm < 0) return C.gruen;
+    if (cm < STOPP_ABSTAND) return C.rot;
+    if (cm < 60) return C.gelb;
+    return C.gruen;
+  }
+  function zeichne(){
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h - 22, r = Math.min(w / 2 - 14, h - 34);
+    const rad = g => g * Math.PI / 180;
+    const zuR = cm => (cm == null || cm < 0) ? r : r * Math.min(cm, RADAR_MAX) / RADAR_MAX;
+
+    // Ringe
+    ctx.lineWidth = 1;
+    [50, 100, 150, 200].forEach(cm => {
+      const rr = r * cm / RADAR_MAX;
+      ctx.strokeStyle = "#2a3040";
+      ctx.beginPath(); ctx.arc(cx, cy, rr, Math.PI, 2 * Math.PI); ctx.stroke();
+      ctx.fillStyle = C.dim; ctx.font = "9px sans-serif"; ctx.textAlign = "right";
+      ctx.fillText(cm, cx + rr - 2, cy + 12);
+    });
+    ctx.strokeStyle = "#222838";
+    [30, 60, 90, 120, 150].forEach(g => {
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(rad(g)), cy - r * Math.sin(rad(g))); ctx.stroke();
+    });
+
+    // Sweep
+    if (verbunden) {
+      radar.sweep += 2.2 * radar.dir;
+      if (radar.sweep > 170 || radar.sweep < 10) radar.dir *= -1;
+      for (let k = 0; k < 4; k++) {
+        const g = radar.sweep - k * 4 * radar.dir;
+        ctx.strokeStyle = `rgba(59,130,246,${0.55 - k * 0.13})`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + r * Math.cos(rad(g)), cy - r * Math.sin(rad(g))); ctx.stroke();
+      }
+    }
+
+    // Kopf-Scan links/rechts
+    if (radar.scan) {
+      const alter = (performance.now() - radar.scan.zeit) / 6000;
+      if (alter < 1) {
+        ctx.globalAlpha = 1 - alter * 0.8;
+        [[radar.scan.l, 160, "L"], [radar.scan.r, 20, "R"]].forEach(([cm, g, n]) => {
+          const rr = zuR(cm), f = farbe(cm);
+          ctx.strokeStyle = f; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.arc(cx, cy, rr, -rad(g + 10), -rad(g - 10)); ctx.stroke();
+          ctx.fillStyle = f; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center";
+          ctx.fillText(`${n} ${Math.min(cm, 400)}`, cx + (rr + 14) * Math.cos(rad(g)), cy - (rr + 14) * Math.sin(rad(g)));
+        });
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Sichtkegel
+    const f = verbunden ? farbe(radar.abstand) : C.dim;
+    const rr = zuR(radar.abstand);
+    ctx.fillStyle = f; ctx.globalAlpha = 0.22;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rr, -rad(105), -rad(75)); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (verbunden && radar.abstand != null && radar.abstand >= 0) {
+      ctx.strokeStyle = f; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, -rad(105), -rad(75)); ctx.stroke();
+    }
+
+    // Roboter
+    ctx.fillStyle = "#1f2330"; ctx.strokeStyle = C.akzent; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 13, cy - 6, 26, 24, 4) : ctx.rect(cx - 13, cy - 6, 26, 24);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#555";
+    [[-18, -2], [13, -2], [-18, 9], [13, 9]].forEach(([x, y]) => ctx.fillRect(cx + x, cy + y, 5, 8));
+    ctx.fillStyle = C.akzent; ctx.beginPath(); ctx.arc(cx, cy - 9, 3.5, 0, 2 * Math.PI); ctx.fill();
+
+    // Zahl
+    let text = "– –", tf = C.dim;
+    if (verbunden) {
+      if (radar.abstand == null || radar.abstand < 0) { text = "frei"; tf = C.gruen; }
+      else { text = radar.abstand + " cm"; tf = f; }
+    }
+    ctx.textAlign = "center"; ctx.fillStyle = tf; ctx.font = "800 30px -apple-system, sans-serif";
+    ctx.fillText(text, cx, 32);
+    ctx.fillStyle = C.dim; ctx.font = "bold 9px sans-serif"; ctx.fillText("ABSTAND VORNE", cx, 47);
+    if (verbunden && radar.abstand != null && radar.abstand >= 0 && radar.abstand < STOPP_ABSTAND) {
+      ctx.fillStyle = C.rot; ctx.font = "bold 12px sans-serif"; ctx.fillText("⚠ HINDERNIS", cx, 64);
+    }
+    requestAnimationFrame(zeichne);
+  }
+  requestAnimationFrame(zeichne);
+  status("weg", "Nicht verbunden");
+  log("Seite geladen (" + VERSION + ") – Bluetooth " + (navigator.bluetooth ? "verfügbar ✔" : "NICHT verfügbar ✘"),
+      !navigator.bluetooth);
+  punktEl.classList.add("blink");
+})();
+</script>
+</body>
+</html>
